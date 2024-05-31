@@ -1,0 +1,76 @@
+﻿@page "/"
+@using VehicleMOTAPP.Models
+@inject VehicleMOTAPP.Services.MOTService MOTService
+@using System.ComponentModel.DataAnnotations
+
+<h3>Vehicle MOT Checker</h3>
+
+<EditForm Model="registrationForm" OnValidSubmit="FetchVehicleDetails">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <InputText id="registration" @bind-Value="registrationForm.Registration" placeholder="Enter Registration Number" />
+    <button type="submit">Get MOT Details</button>
+</EditForm>
+
+@if (vehicle != null)
+{
+    <div>
+        <h4>Vehicle Details</h4>
+        <p>Make: @vehicle.Make</p>
+        <p>Model: @vehicle.Model</p>
+        <p>Colour: @vehicle.PrimaryColour</p>
+        <p>MOT Expiry Date: 
+            @if (!string.IsNullOrEmpty(expiryDate) && DateTime.TryParse(expiryDate, out var parsedExpiryDate))
+            {
+                @if (daysLeft > 0)
+                {
+                    <span style="color:@(daysLeft < 10 ? "red" : "black")">@parsedExpiryDate.ToShortDateString() (@daysLeft days left)</span>
+                }
+                else
+                {
+                    <span style="color:red">The owner of this vehicle must get the car booked in for a MOT before being able to drive it.</span>
+                }
+            }
+            else
+            {
+                <span style="color:red">Invalid expiry date.</span>
+            }
+        </p>
+        <p>Mileage at Last MOT: @vehicle.MotTests.FirstOrDefault()?.OdometerValue @vehicle.MotTests.FirstOrDefault()?.OdometerUnit</p>
+    </div>
+}
+else if (isSubmitted && !string.IsNullOrEmpty(errorMessage))
+{
+    <p>@errorMessage</p>
+}
+
+@code {
+    private RegistrationForm registrationForm = new RegistrationForm();
+    private Vehicle vehicle;
+    private string errorMessage;
+    private bool isSubmitted = false;
+    private int daysLeft = 0;
+    private string expiryDate = string.Empty;
+
+    private async Task FetchVehicleDetails()
+    {
+        isSubmitted = true;
+        var result = await MOTService.GetVehicleDetails(registrationForm.Registration);
+        vehicle = result.vehicle;
+        errorMessage = result.errorMessage;
+
+        if (vehicle != null)
+        {
+            expiryDate = vehicle.MotTests.FirstOrDefault()?.ExpiryDate;
+
+            if (DateTime.TryParse(expiryDate, out var parsedExpiryDate))
+            {
+                daysLeft = (parsedExpiryDate - DateTime.Today).Days;
+            }
+            else
+            {
+                errorMessage = "Invalid expiry date format.";
+            }
+        }
+    }
+}
